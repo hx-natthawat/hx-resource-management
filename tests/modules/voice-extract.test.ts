@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { extract, isoWeek, missing, nextQuestion } from "@/modules/integration";
+import { extract, missing, nextQuestion } from "@/modules/integration";
+import { weekOfDate } from "@/modules/people";
 import { SEED_PROJECTS } from "../fixtures/seed";
 
 const ctx = { projects: SEED_PROJECTS, requestedBy: "ณัฐวุฒิ จ.", year: 2026, today: new Date(Date.UTC(2026, 9, 6)), newId: () => "d1" };
@@ -10,8 +11,8 @@ describe("voice extraction", () => {
     expect(d.role?.value).toBe("Solution Architect");
     expect(d.projectId?.value).toBe("crm");
     expect(d.hoursPerWeek).toMatchObject({ value: 16, source: "inferred" });
-    expect(d.startWeek?.value).toBe(isoWeek(new Date(Date.UTC(2026, 9, 21))));
-    expect(d.endWeek?.value).toBe(isoWeek(new Date(Date.UTC(2026, 10, 20))));
+    expect(d.startWeek?.value).toBe(weekOfDate(new Date(Date.UTC(2026, 9, 21))));
+    expect(d.endWeek?.value).toBe(weekOfDate(new Date(Date.UTC(2026, 10, 20))));
     expect(missing(d)).toEqual(["level"]);
     expect(nextQuestion(d)).toContain("Senior");
   });

@@ -10,7 +10,7 @@ export type Role =
   | "Data Engineer"
   | "DevOps Engineer";
 
-export type Week = number;
+export type { Week } from "./week";
 
 export interface Person {
   id: string;

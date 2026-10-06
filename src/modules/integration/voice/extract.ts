@@ -1,4 +1,5 @@
-import type { Level, Role, Week } from "../../people/types";
+import type { Level, Role } from "../../people/types";
+import { weekOfDate, type Week } from "../../people/week";
 import type { Project } from "../../portfolio/types";
 
 export type FieldSource = "heard" | "inferred" | "account" | "edited";
@@ -65,31 +66,7 @@ const MONTHS: [RegExp, number][] = [
   [/กันยา|ก\.ย\./, 9], [/ตุลา|ต\.ค\./, 10], [/พฤศจิกา|พ\.ย\./, 11], [/ธันวา|ธ\.ค\./, 12],
 ];
 
-export function isoWeek(date: Date): number {
-  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  const day = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - day);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-}
-
-export function weekStart(year: number, week: number): Date {
-  const jan4 = new Date(Date.UTC(year, 0, 4));
-  const monday = new Date(jan4);
-  monday.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() || 7) - 1) + (week - 1) * 7);
-  return monday;
-}
-
-const THAI_MONTH_SHORT = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-export function formatWeekRange(year: number, start: number, end: number): string {
-  const s = weekStart(year, start);
-  const e = weekStart(year, end);
-  e.setUTCDate(e.getUTCDate() + 4);
-  const f = (d: Date) => `${d.getUTCDate()} ${THAI_MONTH_SHORT[d.getUTCMonth()]}`;
-  return `${f(s)} ถึง ${f(e)} (W${start} ถึง W${end})`;
-}
-
-function parsePeriod(text: string, year: number, today: Date): { start?: number; end?: number; heard?: string } {
+function parsePeriod(text: string, year: number, today: Date): { start?: Week; end?: Week; heard?: string } {
   const hits: { month: number; mod: string; index: number; raw: string }[] = [];
   for (const [re, month] of MONTHS) {
     const g = new RegExp(`(ต้น|กลาง|ปลาย)?\\s*(?:เดือน)?\\s*(?:${re.source})[^\\s]*`, "g");
@@ -106,9 +83,10 @@ function parsePeriod(text: string, year: number, today: Date): { start?: number;
     mod === "ต้น" ? 10 : mod === "กลาง" ? 20 : new Date(Date.UTC(year, month, 0)).getUTCDate();
   const first = hits[0];
   const last = hits[hits.length - 1];
+  const endYear = last.month < first.month ? year + 1 : year;
   return {
-    start: isoWeek(new Date(Date.UTC(year, first.month - 1, startDay(first.mod)))),
-    end: isoWeek(new Date(Date.UTC(year, last.month - 1, endDay(last.mod, last.month)))),
+    start: weekOfDate(new Date(Date.UTC(year, first.month - 1, startDay(first.mod)))),
+    end: weekOfDate(new Date(Date.UTC(endYear, last.month - 1, endDay(last.mod, last.month)))),
     heard: hits.length > 1 ? `${first.raw} ถึง ${last.raw}` : first.raw,
   };
 }

@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { transition, type Booking } from "@/modules/booking";
 import { loadAfter } from "@/modules/conflict";
 import type { Person } from "@/modules/people";
@@ -78,12 +78,12 @@ export async function confirmBooking(db: Db, input: ConfirmInput): Promise<Confi
           eq(bookings.tenantId, input.tenantId),
           eq(bookings.personId, input.personId),
           ne(bookings.id, row.id),
-          inArray(bookings.status, ["Proposed", "Confirmed"]),
+          eq(bookings.status, "Confirmed"),
         ),
       );
 
     const domainPerson = toDomainPerson(person);
-    const peak = loadAfter(domainPerson, others.map(toDomainBooking), row);
+    const peak = loadAfter(domainPerson, others.map(toDomainBooking), row, { count: "hard" });
     if (peak > 100) {
       return { ok: false, code: "over_capacity", message: `${person.name} would reach ${peak}%`, peakPercent: peak };
     }
