@@ -1,16 +1,15 @@
 import { handle } from "hono/vercel";
 import { createApp } from "@/server/api/app";
-
-const DEV_TENANT_HEADER = "x-dev-tenant-id";
+import { sessionFromCookies } from "@/server/auth/session";
+import { databaseUrl, devLoginEnabled } from "@/server/env";
 
 const app = createApp({
-  databaseUrl: () => process.env.DATABASE_URL,
-  context: (req) => {
-    if (process.env.NODE_ENV === "production") return null;
-    const tenantId = req.headers.get(DEV_TENANT_HEADER) ?? process.env.DEV_TENANT_ID;
-    return tenantId ? { tenantId, actor: "dev" } : null;
-  },
+  databaseUrl,
+  session: (req, db) => sessionFromCookies(db, req.headers.get("cookie")),
+  devLogin: devLoginEnabled,
 });
 
 export const GET = handle(app);
 export const POST = handle(app);
+export const PATCH = handle(app);
+export const DELETE = handle(app);

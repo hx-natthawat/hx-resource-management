@@ -34,13 +34,11 @@ describe("demo seed", () => {
 
   it("reproduces the prototype conflicts, with holidays applied", async () => {
     const tenantId = await withDb(url, seedDemo);
-    const [ps, bs, hs] = await withDb(url, (db) =>
-      Promise.all([
-        db.select().from(people).where(eq(people.tenantId, tenantId)),
-        db.select().from(bookings).where(eq(bookings.tenantId, tenantId)),
-        db.select().from(holidays).where(eq(holidays.tenantId, tenantId)),
-      ]),
-    );
+    const [ps, bs, hs] = await withDb(url, async (db) => [
+      await db.select().from(people).where(eq(people.tenantId, tenantId)),
+      await db.select().from(bookings).where(eq(bookings.tenantId, tenantId)),
+      await db.select().from(holidays).where(eq(holidays.tenantId, tenantId)),
+    ] as const);
     const conflicts = findConflicts(ps.map(toPerson), bs.map(toBooking), weeksFrom(202641, 8), capacityWithHolidays(hs.map(toHoliday)));
     const names = new Map(ps.map((p) => [p.id, p.name]));
     expect(conflicts.map((c) => names.get(c.personId))).toContain("อนันต์ ส.");

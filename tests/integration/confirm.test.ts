@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "@/server/api/app";
+import type { SessionUser } from "@/server/auth/session";
 import { confirmBooking } from "@/server/booking/confirm";
 import { withDb } from "@/server/db/client";
 import { auditEvents, bookings, people, projects, tenants } from "@/server/db/schema";
@@ -79,11 +80,24 @@ describe("confirmBooking against PostgreSQL (ADR-006)", () => {
 });
 
 describe("API edge", () => {
-  const app = createApp({ databaseUrl: () => url, context: (req) => (req.headers.get("x-tenant") ? { tenantId: req.headers.get("x-tenant")!, actor: "rm" } : null) });
+  const app = createApp({
+    databaseUrl: () => url,
+    devLogin: () => false,
+    session: async (req) => {
+      const tenantId = req.headers.get("x-tenant");
+      const role = (req.headers.get("x-role") ?? "RM") as SessionUser["role"];
+      return tenantId ? { userId: "00000000-0000-0000-0000-000000000000", tenantId, name: "rm", email: "rm@test", role, personId: null } : null;
+    },
+  });
 
-  it("rejects callers without a context", async () => {
+  it("rejects callers without a session", async () => {
     const res = await app.request("/api/bookings/00000000-0000-0000-0000-000000000000/confirm", { method: "POST", body: "{}" });
     expect(res.status).toBe(401);
+  });
+
+  it("forbids a PM from confirming (RBAC)", async () => {
+    const res = await app.request("/api/bookings/00000000-0000-0000-0000-000000000000/confirm", { method: "POST", headers: { "x-tenant": "t", "x-role": "PM" }, body: "{}" });
+    expect(res.status).toBe(403);
   });
 
   it("validates input at the boundary", async () => {
@@ -99,5 +113,10 @@ describe("API edge", () => {
     const res = await call(s.b);
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ error: "over_capacity", peakPercent: 140 });
+  });
+
+  it("hides dev sign-in when it is disabled", async () => {
+    const res = await app.request("/api/dev/sign-in", { method: "POST", body: JSON.stringify({ userId: "00000000-0000-0000-0000-000000000000" }) });
+    expect(res.status).toBe(404);
   });
 });
