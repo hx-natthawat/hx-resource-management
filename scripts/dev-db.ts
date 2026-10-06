@@ -6,7 +6,7 @@
  *
  * With DATABASE_URL set (in the shell or .env.local) it uses that server and exits after seeding.
  * Without it, it starts an embedded PostgreSQL in .data/pg (macOS and most Linux) and stays up
- * until Ctrl+C. It writes DATABASE_URL and DEV_TENANT_ID to .env.local for `pnpm dev`.
+ * until Ctrl+C. It writes DATABASE_URL to .env.local for `pnpm dev`.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
