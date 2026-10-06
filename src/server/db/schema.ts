@@ -1,9 +1,10 @@
 import { sql } from "drizzle-orm";
-import { bigserial, boolean, index, integer, jsonb, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigserial, boolean, date, index, integer, jsonb, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 export const bookingStatus = pgEnum("booking_status", ["Draft", "Requested", "Proposed", "Confirmed", "Released", "Rejected"]);
 export const bookingSource = pgEnum("booking_source", ["voice", "form", "seed"]);
 export const decisionKind = pgEnum("decision_kind", ["shift", "substitute", "reduce"]);
+export const appRole = pgEnum("app_role", ["PM", "RM", "Council", "Executive", "Admin"]);
 
 const tenantId = () => uuid("tenant_id").notNull().references(() => tenants.id);
 const id = () => uuid("id").primaryKey().default(sql`gen_random_uuid()`);
@@ -30,6 +31,33 @@ export const people = pgTable(
   (t) => [index("people_tenant_idx").on(t.tenantId)],
 );
 
+/** Someone who signs in. Linked to a Person when they can also be booked. */
+export const users = pgTable(
+  "users",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    email: text("email").notNull(),
+    name: text("name").notNull(),
+    role: appRole("role").notNull(),
+    personId: uuid("person_id").references(() => people.id),
+    googleSub: text("google_sub"),
+  },
+  (t) => [uniqueIndex("users_tenant_email_uq").on(t.tenantId, t.email)],
+);
+
+/** Non-working days for the whole tenant. Each weekday holiday lowers weekly capacity by a fifth (ADR-004). */
+export const holidays = pgTable(
+  "holidays",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    date: date("date", { mode: "string" }).notNull(),
+    name: text("name").notNull(),
+  },
+  (t) => [uniqueIndex("holidays_tenant_date_uq").on(t.tenantId, t.date)],
+);
+
 export const projects = pgTable(
   "projects",
   {
@@ -41,6 +69,8 @@ export const projects = pgTable(
     rank: integer("rank").notNull(),
     wsjf: jsonb("wsjf").notNull(),
     winProbability: numeric("win_probability"),
+    rankNote: text("rank_note"),
+    ownerUserId: uuid("owner_user_id").references(() => users.id),
   },
   (t) => [uniqueIndex("projects_tenant_rank_uq").on(t.tenantId, t.rank)],
 );

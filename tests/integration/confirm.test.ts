@@ -1,40 +1,20 @@
-import { chmodSync, mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import { sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
-import EmbeddedPostgres from "embedded-postgres";
-import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "@/server/api/app";
 import { confirmBooking } from "@/server/booking/confirm";
 import { withDb } from "@/server/db/client";
 import { auditEvents, bookings, people, projects, tenants } from "@/server/db/schema";
+import { startTestDb } from "../helpers/db";
 
-let url = process.env.TEST_DATABASE_URL ?? "";
-let embedded: EmbeddedPostgres | null = null;
+let url = "";
+let stop = async () => {};
 
 beforeAll(async () => {
-  if (!url) {
-    const port = 54000 + Math.floor(Math.random() * 1000);
-    const parent = mkdtempSync(path.join(tmpdir(), "hx-pg-"));
-    chmodSync(parent, 0o777);
-    const databaseDir = path.join(parent, "data");
-    embedded = new EmbeddedPostgres({ databaseDir, user: "postgres", password: "postgres", port, persistent: false });
-    await embedded.initialise();
-    await embedded.start();
-    await embedded.createDatabase("hx");
-    url = `postgres://postgres:postgres@localhost:${port}/hx`;
-  }
-  const client = new Client({ connectionString: url });
-  await client.connect();
-  await migrate(drizzle(client), { migrationsFolder: path.resolve(__dirname, "../../drizzle") });
-  await client.end();
+  ({ url, stop } = await startTestDb());
 });
 
 afterAll(async () => {
-  await embedded?.stop();
+  await stop();
 });
 
 const W43 = 202643;

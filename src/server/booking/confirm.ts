@@ -1,8 +1,8 @@
 import { and, eq, ne } from "drizzle-orm";
-import { transition, type Booking } from "@/modules/booking";
+import { transition } from "@/modules/booking";
 import { loadAfter } from "@/modules/conflict";
-import type { Person } from "@/modules/people";
 import type { Db } from "../db/client";
+import { toBooking, toPerson } from "../db/mappers";
 import { auditEvents, bookings, people } from "../db/schema";
 
 export type ConfirmResult =
@@ -15,34 +15,6 @@ export interface ConfirmInput {
   personId: string;
   actor: string;
 }
-
-const toDomainPerson = (p: typeof people.$inferSelect): Person => ({
-  id: p.id,
-  name: p.name,
-  role: p.role as Person["role"],
-  company: p.company as Person["company"],
-  level: p.level as Person["level"],
-  skills: p.skills,
-  capacityHours: p.capacityHours,
-  isKeyResource: p.isKeyResource,
-  wipLimit: p.wipLimit,
-});
-
-const toDomainBooking = (b: typeof bookings.$inferSelect): Booking => ({
-  id: b.id,
-  projectId: b.projectId,
-  role: b.role as Booking["role"],
-  skills: b.skills,
-  level: b.level as Booking["level"],
-  personId: b.personId,
-  hoursPerWeek: b.hoursPerWeek,
-  startWeek: b.startWeek,
-  endWeek: b.endWeek,
-  status: b.status,
-  requestedBy: b.requestedBy,
-  note: b.note ?? undefined,
-  source: b.source,
-});
 
 /**
  * Resource Manager confirms a booking for a person (ADR-002, ADR-006).
@@ -82,15 +54,15 @@ export async function confirmBooking(db: Db, input: ConfirmInput): Promise<Confi
         ),
       );
 
-    const domainPerson = toDomainPerson(person);
-    const peak = loadAfter(domainPerson, others.map(toDomainBooking), row, { count: "hard" });
+    const domainPerson = toPerson(person);
+    const peak = loadAfter(domainPerson, others.map(toBooking), row, { count: "hard" });
     if (peak > 100) {
       return { ok: false, code: "over_capacity", message: `${person.name} would reach ${peak}%`, peakPercent: peak };
     }
 
     const proposed = row.status === "Proposed" && row.personId === input.personId
-      ? { ok: true as const, booking: toDomainBooking(row) }
-      : transition(toDomainBooking(row), { type: "propose", personId: input.personId });
+      ? { ok: true as const, booking: toBooking(row) }
+      : transition(toBooking(row), { type: "propose", personId: input.personId });
     if (!proposed.ok) return { ok: false, code: "invalid_state", message: proposed.error };
     const confirmed = transition(proposed.booking, { type: "confirm" });
     if (!confirmed.ok) return { ok: false, code: "invalid_state", message: confirmed.error };

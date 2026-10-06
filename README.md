@@ -18,7 +18,8 @@ Nothing ships before Verify passes against the running feature with evidence on 
 
 ```bash
 pnpm install
-pnpm dev     # http://localhost:3000
+pnpm dev:db  # terminal 1: local PostgreSQL with demo data (keep it running)
+pnpm dev     # terminal 2: http://localhost:3000
 pnpm test    # unit tests and PostgreSQL integration tests
 ```
 
