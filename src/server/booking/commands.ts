@@ -27,33 +27,38 @@ export type CommandResult<T> = { ok: true; value: T } | { ok: false; code: "not_
  */
 export async function createDemand(db: Db, input: DemandInput): Promise<CommandResult<typeof bookings.$inferSelect>> {
   if (input.endWeek < input.startWeek) return { ok: false, code: "invalid_request", message: "End is before start" };
-  return db.transaction(async (tx) => {
-    const [project] = await tx
-      .select({ id: projects.id })
-      .from(projects)
-      .where(and(eq(projects.id, input.projectId), eq(projects.tenantId, input.tenantId)));
-    if (!project) return { ok: false, code: "not_found", message: "Project not found" };
-    const [row] = await tx
-      .insert(bookings)
-      .values({
-        tenantId: input.tenantId,
-        projectId: input.projectId,
-        personId: null,
-        role: input.role,
-        level: input.level,
-        skills: input.skills,
-        hoursPerWeek: input.hoursPerWeek,
-        startWeek: input.startWeek,
-        endWeek: input.endWeek,
-        status: "Requested",
-        requestedBy: input.actor,
-        note: input.note ?? null,
-        source: input.source,
-      })
-      .returning();
-    await tx.insert(auditEvents).values({ tenantId: input.tenantId, actor: input.actor, entity: "booking", entityId: row.id, action: "request", before: null, after: { status: "Requested" } });
-    return { ok: true, value: row };
-  });
+  return db.transaction((tx) => insertDemand(tx, input));
+}
+
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/** The insert behind createDemand, for callers that already hold a transaction (voice approval). */
+export async function insertDemand(tx: Tx, input: DemandInput): Promise<CommandResult<typeof bookings.$inferSelect>> {
+  const [project] = await tx
+    .select({ id: projects.id })
+    .from(projects)
+    .where(and(eq(projects.id, input.projectId), eq(projects.tenantId, input.tenantId)));
+  if (!project) return { ok: false, code: "not_found", message: "Project not found" };
+  const [row] = await tx
+    .insert(bookings)
+    .values({
+      tenantId: input.tenantId,
+      projectId: input.projectId,
+      personId: null,
+      role: input.role,
+      level: input.level,
+      skills: input.skills,
+      hoursPerWeek: input.hoursPerWeek,
+      startWeek: input.startWeek,
+      endWeek: input.endWeek,
+      status: "Requested",
+      requestedBy: input.actor,
+      note: input.note ?? null,
+      source: input.source,
+    })
+    .returning();
+  await tx.insert(auditEvents).values({ tenantId: input.tenantId, actor: input.actor, entity: "booking", entityId: row.id, action: "request", before: null, after: { status: "Requested", source: input.source } });
+  return { ok: true, value: row };
 }
 
 async function applyEvent(db: Db, tenantId: string, bookingId: string, actor: string, event: BookingEvent, action: string): Promise<CommandResult<typeof bookings.$inferSelect>> {

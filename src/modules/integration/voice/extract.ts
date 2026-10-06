@@ -66,6 +66,13 @@ const MONTHS: [RegExp, number][] = [
   [/กันยา|ก\.ย\./, 9], [/ตุลา|ต\.ค\./, 10], [/พฤศจิกา|พ\.ย\./, 11], [/ธันวา|ธ\.ค\./, 12],
 ];
 
+/** A start that falls on a weekend means the following working week. */
+function workWeekFrom(d: Date): Week {
+  const day = d.getUTCDay();
+  const shift = day === 6 ? 2 : day === 0 ? 1 : 0;
+  return weekOfDate(new Date(d.getTime() + shift * 86_400_000));
+}
+
 function parsePeriod(text: string, year: number, today: Date): { start?: Week; end?: Week; heard?: string } {
   const hits: { month: number; mod: string; index: number; raw: string }[] = [];
   for (const [re, month] of MONTHS) {
@@ -85,7 +92,7 @@ function parsePeriod(text: string, year: number, today: Date): { start?: Week; e
   const last = hits[hits.length - 1];
   const endYear = last.month < first.month ? year + 1 : year;
   return {
-    start: weekOfDate(new Date(Date.UTC(year, first.month - 1, startDay(first.mod)))),
+    start: workWeekFrom(new Date(Date.UTC(year, first.month - 1, startDay(first.mod)))),
     end: weekOfDate(new Date(Date.UTC(endYear, last.month - 1, endDay(last.mod, last.month)))),
     heard: hits.length > 1 ? `${first.raw} ถึง ${last.raw}` : first.raw,
   };

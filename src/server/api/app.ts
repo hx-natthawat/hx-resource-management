@@ -7,6 +7,8 @@ import { createDemand, proposeBooking, rejectBooking, type CommandResult } from 
 import { confirmBooking } from "../booking/confirm";
 import { decideConflict } from "../conflict/decide";
 import { saveRank } from "../portfolio/rank";
+import { approveDraft, discardDraft, editDraft, say, type DraftOwner } from "../voice/drafts";
+import { today } from "../env";
 import { withDb, type Db } from "../db/client";
 import { users } from "../db/schema";
 
@@ -164,6 +166,62 @@ export function createApp(deps: AppDeps) {
     if (!body) return c.json({ error: "invalid_request" }, 400);
     const result = await saveRank(c.get("db"), { tenantId: user.tenantId, actor: user.name, order: body.order, reason: body.reason });
     return result.ok ? c.json(result) : c.json({ error: result.code, message: result.message, deviations: result.deviations }, 422);
+  });
+
+  const owner = (u: SessionUser): DraftOwner => ({ tenantId: u.tenantId, userId: u.userId, name: u.name });
+  const draftStatus = (code: string) => (code === "not_found" ? 404 : code === "incomplete" ? 422 : 409);
+
+  // Voice first, human approves (ADR-008): utterances fill a draft; only approval creates a booking.
+  app.post("/voice/say", async (c) => {
+    const user = guard(c, "draft.create");
+    if (user instanceof Response) return user;
+    const body = await readJson(c, z.object({ draftId: uuid.optional(), text: z.string().trim().min(1).max(2000) }).strict());
+    if (!body) return c.json({ error: "invalid_request" }, 400);
+    const r = await say(c.get("db"), owner(user), { ...body, today: today() });
+    return r.ok ? c.json(r) : c.json({ error: r.code, message: r.message }, draftStatus(r.code));
+  });
+
+  app.patch("/drafts/:id", async (c) => {
+    const user = guard(c, "draft.create");
+    if (user instanceof Response) return user;
+    const id = uuid.safeParse(c.req.param("id"));
+    const body = await readJson(
+      c,
+      z
+        .object({
+          projectId: uuid.optional(),
+          role: z.enum(ROLES).optional(),
+          level: z.enum(LEVELS).optional(),
+          skills: z.array(z.string().trim().min(1).max(40)).max(10).optional(),
+          hoursPerWeek: z.number().int().min(1).max(40).optional(),
+          startDate: isoDate.optional(),
+          endDate: isoDate.optional(),
+        })
+        .strict(),
+    );
+    if (!id.success || !body) return c.json({ error: "invalid_request" }, 400);
+    const { startDate, endDate, ...rest } = body;
+    const toWeek = (d?: string) => (d ? weekOfDate(new Date(`${d}T00:00:00Z`)) : undefined);
+    const r = await editDraft(c.get("db"), owner(user), id.data, { ...rest, startWeek: toWeek(startDate), endWeek: toWeek(endDate) });
+    return r.ok ? c.json(r) : c.json({ error: r.code, message: r.message }, draftStatus(r.code));
+  });
+
+  app.post("/drafts/:id/approve", async (c) => {
+    const user = guard(c, "draft.create");
+    if (user instanceof Response) return user;
+    const id = uuid.safeParse(c.req.param("id"));
+    if (!id.success) return c.json({ error: "invalid_request" }, 400);
+    const r = await approveDraft(c.get("db"), owner(user), id.data);
+    return r.ok ? c.json(r) : c.json({ error: r.code, message: r.message, missing: r.missing }, draftStatus(r.code));
+  });
+
+  app.post("/drafts/:id/discard", async (c) => {
+    const user = guard(c, "draft.create");
+    if (user instanceof Response) return user;
+    const id = uuid.safeParse(c.req.param("id"));
+    if (!id.success) return c.json({ error: "invalid_request" }, 400);
+    const r = await discardDraft(c.get("db"), owner(user), id.data);
+    return r.ok ? c.json(r) : c.json({ error: "not_found" }, 404);
   });
 
   app.post("/conflicts/decide", async (c) => {

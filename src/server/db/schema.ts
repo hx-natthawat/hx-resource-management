@@ -150,3 +150,25 @@ export const auditEvents = pgTable(
   },
   (t) => [index("audit_entity_idx").on(t.tenantId, t.entity, t.entityId)],
 );
+
+export const draftStatus = pgEnum("draft_status", ["open", "approved", "discarded"]);
+
+/**
+ * A demand being filled by voice (ADR-008). Each field carries its source (heard, inferred,
+ * account, edited). Nothing becomes a booking until its owner approves it on the review screen.
+ * Only the transcript is kept; no audio is stored.
+ */
+export const drafts = pgTable(
+  "drafts",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    data: jsonb("data").notNull(),
+    status: draftStatus("status").notNull().default("open"),
+    bookingId: uuid("booking_id").references(() => bookings.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("drafts_user_idx").on(t.tenantId, t.userId, t.status)],
+);

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { weekOfDate, type Week } from "@/modules/people";
 import { sessionFromCookies, type SessionUser } from "./auth/session";
 import { withDb, type Db } from "./db/client";
-import { databaseUrl } from "./env";
+import { databaseUrl, today } from "./env";
 
 /** Runs a server component's data work with a database client and the signed-in user, or sends them to sign in. */
 export async function withPage<T>(run: (ctx: { db: Db; user: SessionUser }) => Promise<T>): Promise<T> {
@@ -19,4 +19,4 @@ export async function withPage<T>(run: (ctx: { db: Db; user: SessionUser }) => P
 }
 
 /** The current week. HX_TODAY (YYYY-MM-DD) pins it for demos and screenshots. */
-export const currentWeek = (): Week => weekOfDate(process.env.HX_TODAY ? new Date(`${process.env.HX_TODAY}T00:00:00Z`) : new Date());
+export const currentWeek = (): Week => weekOfDate(today());
