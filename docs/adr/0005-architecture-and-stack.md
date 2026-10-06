@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed. Issue #5.
+Accepted. Fero accepted in chat on 2026-10-06 ("Approve all ADR"). Issue #5.
 
 Fero decided in chat on 2026-10-06 that the system is a modular monolith in one repository, signs in with Google Workspace, runs in the cloud on Cloudflare, and can be lifted out to run on-premise. Those points are settled. This revision adds the concrete runtime that satisfies them. It replaces NestJS, which the original proposal named, so it needs Fero's acceptance before any production code.
 

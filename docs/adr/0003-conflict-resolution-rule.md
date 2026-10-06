@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed. Issue #3.
+Accepted. Fero accepted in chat on 2026-10-06 ("Approve all ADR"). Issue #3.
 
 ## Context
 
