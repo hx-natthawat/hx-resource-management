@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prototype:booking": "node prototypes/r1-booking-logic/tui.ts"
+    "prototype:booking": "node prototypes/r1-booking-logic/tui.ts",
+    "prototype:ui": "node prototypes/r1-booking-ui/server.ts"
   }
 }

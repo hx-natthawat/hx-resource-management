@@ -195,6 +195,10 @@ export function release(s0: State, i: { bookingId: string }): Result {
   const b = booking(s, i.bookingId)!;
   b.status = "Released";
   for (const c of s.conflicts) if (c.open && c.challengerId === b.id) { c.open = false; c.reason = "challenger released"; }
+  for (const c of s.conflicts)
+    if (c.open && c.rule === "capacity-drop" && c.weeks.every((w) => hardHours(s, c.personId, w) <= capacity(s, c.personId, w))) {
+      c.open = false; c.reason = `resolved by releasing ${b.id}`;
+    }
   say(s, `${b.id} → Released`);
   return { state: s };
 }
