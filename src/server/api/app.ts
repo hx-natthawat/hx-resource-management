@@ -21,7 +21,14 @@ type Env = { Variables: { db: Db; user: SessionUser | null } };
 export type ApiContext = Context<Env>;
 
 const uuid = z.string().uuid();
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+/** A real calendar date: 2026-02-30 and 2026-13-45 are refused rather than rolled over. */
+const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((s) => {
+    const d = new Date(`${s}T00:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+  }, "invalid date");
 
 const demandBody = z
   .object({
@@ -34,7 +41,10 @@ const demandBody = z
     endDate: isoDate,
     note: z.string().max(1000).optional(),
   })
-  .strict();
+  .strict()
+  .refine((d) => d.endDate >= d.startDate, "end before start")
+  // One year at most; longer engagements are booked in phases so capacity math stays bounded.
+  .refine((d) => Date.parse(d.endDate) - Date.parse(d.startDate) <= 366 * 86_400_000, "longer than a year");
 
 function commandResponse<T>(c: ApiContext, r: CommandResult<T>, ok: (v: T) => object) {
   if (r.ok) return c.json(ok(r.value));

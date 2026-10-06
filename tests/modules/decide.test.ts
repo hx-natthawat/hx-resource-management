@@ -29,7 +29,12 @@ describe("planDecision (ADR-003)", () => {
 
   it("treats substitute and reduce as overrides that need a reason", () => {
     expect(planDecision(anan, { bookingId: km.id, kind: "reduce" }, ctx)).toEqual({ ok: false, code: "reason_required" });
-    expect(planDecision(anan, { bookingId: km.id, kind: "reduce", reason: "ลดขอบเขตงาน" }, ctx)).toMatchObject({ ok: true, change: { hoursPerWeek: 4 } });
+    expect(planDecision(anan, { bookingId: crm.id, kind: "reduce", reason: "ลดขอบเขตงาน" }, ctx)).toMatchObject({ ok: true, change: { hoursPerWeek: 12 } });
+  });
+
+  it("refuses a decision that leaves the person over capacity", () => {
+    // 24 + 16 + 4 = 44 of 40 hours: halving the small booking does not clear the conflict.
+    expect(planDecision(anan, { bookingId: km.id, kind: "reduce", reason: "ลดขอบเขตงาน" }, ctx)).toEqual({ ok: false, code: "still_conflicted", peakPercent: 110 });
   });
 
   it("only substitutes someone who fits without a new conflict", () => {

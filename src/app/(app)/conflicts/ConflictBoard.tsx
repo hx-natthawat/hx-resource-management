@@ -15,6 +15,8 @@ export interface ConflictBooking {
   period: string;
   shiftWeeks: number;
   reducedHours: number;
+  shiftOk: boolean;
+  reduceOk: boolean;
   substitute: { personId: string; name: string; skillMatch: number; peakAfter: number } | null;
 }
 
@@ -45,6 +47,7 @@ const ERROR_TH: Record<string, string> = {
   substitute_unavailable: "คนที่เลือกไม่ว่างพอ ลองทางเลือกอื่น",
   no_conflict: "Conflict นี้ถูกตัดสินไปแล้ว หน้าจอจะโหลดใหม่",
   invalid_hours: "ชั่วโมงใหม่ต้องน้อยกว่าเดิม",
+  still_conflicted: "ทางแก้นี้ยังทำให้เกิน capacity ลองทางเลือกอื่น",
 };
 
 const when = (iso: string) => new Date(iso).toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -109,21 +112,31 @@ function Decide({ conflict, canDecide }: { conflict: ConflictView; canDecide: bo
   const router = useRouter();
   const toast = useToast();
   const [bookingId, setBookingId] = useState(conflict.recommendedBookingId ?? conflict.bookings[0].id);
-  const [kind, setKind] = useState<Kind>("shift");
+  const [kind, setKind] = useState<Kind>(() => {
+    const b = conflict.bookings.find((x) => x.id === (conflict.recommendedBookingId ?? conflict.bookings[0].id))!;
+    return b.shiftOk ? "shift" : b.substitute ? "substitute" : "reduce";
+  });
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   // One id per attempt: a double tap or a network retry is applied once.
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
 
   const target = conflict.bookings.find((b) => b.id === bookingId)!;
+  const pick = (id: string) => {
+    const b = conflict.bookings.find((x) => x.id === id)!;
+    setBookingId(id);
+    setKind(b.shiftOk ? "shift" : b.substitute ? "substitute" : "reduce");
+  };
   const recommended = kind === "shift" && bookingId === conflict.recommendedBookingId;
+  const chosenOk = kind === "shift" ? target.shiftOk : kind === "reduce" ? target.reduceOk : !!target.substitute;
   const needsReason = !recommended && reason.trim().length < 5;
 
   const options: { kind: Kind; title: string; detail: string; disabled?: boolean }[] = [
     {
       kind: "shift",
       title: `เลื่อน ${target.projectName} ออกไป ${target.shiftWeeks} สัปดาห์`,
-      detail: `สัปดาห์แรกที่ ${conflict.name} ว่างพอ${target.soft ? " · ยังเป็น Soft booking" : ""}`,
+      detail: target.shiftOk ? `สัปดาห์แรกที่ ${conflict.name} ว่างพอ${target.soft ? " · ยังเป็น Soft booking" : ""}` : `${conflict.name} ไม่ว่างพอในปีนี้ ลองทางเลือกอื่น`,
+      disabled: !target.shiftOk,
     },
     {
       kind: "substitute",
@@ -134,7 +147,8 @@ function Decide({ conflict, canDecide }: { conflict: ConflictView; canDecide: bo
     {
       kind: "reduce",
       title: `ลดชั่วโมง ${target.projectName} เหลือ ${target.reducedHours} ชม.`,
-      detail: `จาก ${target.hoursPerWeek} ชม. ต่อสัปดาห์ · ระบบแจ้ง PM ของโครงการนั้น`,
+      detail: target.reduceOk ? `จาก ${target.hoursPerWeek} ชม. ต่อสัปดาห์ · ระบบแจ้ง PM ของโครงการนั้น` : "ลดแล้วยังเกิน capacity ลองทางเลือกอื่น",
+      disabled: !target.reduceOk,
     },
   ];
 
@@ -179,7 +193,7 @@ function Decide({ conflict, canDecide }: { conflict: ConflictView; canDecide: bo
               type="button"
               key={b.id}
               disabled={!canDecide}
-              onClick={() => setBookingId(b.id)}
+              onClick={() => pick(b.id)}
               aria-pressed={b.id === bookingId}
               className={`flex min-h-[88px] flex-col items-start gap-1 rounded-xl bg-white p-2.5 text-left ${b.soft ? "border-2 border-dashed border-hx-gold" : "border-[1.5px] border-[rgba(52,85,137,0.12)]"} ${b.id === bookingId && canDecide ? "ring-2 ring-hx-blue" : ""}`}
             >
@@ -217,7 +231,7 @@ function Decide({ conflict, canDecide }: { conflict: ConflictView; canDecide: bo
             </label>
           )}
           <div className="fixed inset-x-0 bottom-[76px] z-10 bg-hx-tint/95 px-4 py-3 backdrop-blur lg:static lg:bg-transparent lg:p-0">
-            <button type="button" className="btn w-full" disabled={busy || needsReason} onClick={save}>
+            <button type="button" className="btn w-full" disabled={busy || needsReason || !chosenOk} onClick={save}>
               {busy ? "กำลังบันทึก" : "บันทึกการตัดสิน"}
             </button>
           </div>

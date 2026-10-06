@@ -29,9 +29,6 @@ const KIND_TH = { shift: "เลื่อน", substitute: "เปลี่ย�
  */
 export async function decideConflict(db: Db, input: DecideInput): Promise<DecideResult> {
   return db.transaction(async (tx) => {
-    const [seen] = await tx.select().from(decisions).where(and(eq(decisions.requestId, input.requestId), eq(decisions.tenantId, input.tenantId)));
-    if (seen) return { ok: true, decision: seen, replayed: true };
-
     // Lock in id order so a concurrent confirm or decision on the same people serialises without deadlock.
     const lockIds = [...new Set([input.personId, input.substituteId].filter((x): x is string => !!x))];
     const locked = await tx
@@ -43,6 +40,22 @@ export async function decideConflict(db: Db, input: DecideInput): Promise<Decide
     const person = locked.find((p) => p.id === input.personId);
     if (!person) return { ok: false, code: "not_found", message: "Person not found" };
     if (input.substituteId && !locked.some((p) => p.id === input.substituteId)) return { ok: false, code: "substitute_unavailable", message: "Substitute not found" };
+
+    // Same order as confirmBooking (people, then booking), so the two cannot deadlock.
+    const [targetRow] = await tx
+      .select()
+      .from(bookings)
+      .where(and(eq(bookings.id, input.bookingId), eq(bookings.tenantId, input.tenantId)))
+      .for("update");
+
+    // Checked after the locks: a retry that raced the first attempt waits here, then replays its result.
+    const [seen] = await tx.select().from(decisions).where(and(eq(decisions.requestId, input.requestId), eq(decisions.tenantId, input.tenantId)));
+    if (seen) return { ok: true, decision: seen, replayed: true };
+
+    // A concurrent reject, release or confirm to someone else has already taken this booking out of the conflict.
+    if (!targetRow || targetRow.personId !== input.personId || (targetRow.status !== "Proposed" && targetRow.status !== "Confirmed")) {
+      return { ok: false, code: "no_conflict", message: "Booking is no longer in this conflict" };
+    }
 
     const allPeople = (await tx.select().from(people).where(eq(people.tenantId, input.tenantId))).map(toPerson);
     const allProjects = (await tx.select().from(projects).where(eq(projects.tenantId, input.tenantId))).map(toProject);

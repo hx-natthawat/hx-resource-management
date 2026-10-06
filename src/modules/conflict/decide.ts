@@ -2,7 +2,7 @@ import type { Booking } from "../booking/types";
 import type { Person } from "../people/types";
 import { addWeeks, weeksBetween } from "../people/week";
 import type { Project } from "../portfolio/types";
-import { flatCapacity, loadAfter, rankCandidates, recommendResolution, type CapacityOf } from "./capacity";
+import { flatCapacity, loadAfter, rankCandidates, recommendResolution, weekLoad, type CapacityOf } from "./capacity";
 import type { Conflict, DecisionKind } from "./types";
 
 export interface DecisionChoice {
@@ -28,7 +28,8 @@ export type DecisionError =
   | "reason_required"
   | "substitute_required"
   | "substitute_unavailable"
-  | "invalid_hours";
+  | "invalid_hours"
+  | "still_conflicted";
 
 export type DecisionPlan =
   | { ok: true; change: BookingChange; followedRecommendation: boolean; shiftWeeks: number }
@@ -70,7 +71,7 @@ export function suggestSubstitute(target: Booking, conflictPersonId: string, peo
  * is an override and needs a reason. A substitute must fit with proposed hours
  * counted, so the fix never creates a new conflict for someone else.
  */
-export function planDecision(
+function planChange(
   conflict: Conflict,
   choice: DecisionChoice,
   ctx: { people: Person[]; projects: Project[]; bookings: Booking[]; capacityOf?: CapacityOf },
@@ -103,4 +104,22 @@ export function planDecision(
       return { ok: true, followedRecommendation, shiftWeeks: 0, change: { ...base, hoursPerWeek: hours } };
     }
   }
+}
+
+/**
+ * Plan a decision, then prove it: the changed booking must sit within capacity
+ * (proposed hours counted) everywhere it now lands, or the decision fixed nothing.
+ */
+export function planDecision(
+  conflict: Conflict,
+  choice: DecisionChoice,
+  ctx: { people: Person[]; projects: Project[]; bookings: Booking[]; capacityOf?: CapacityOf },
+): DecisionPlan {
+  const plan = planChange(conflict, choice, ctx);
+  if (!plan.ok) return plan;
+  const owner = ctx.people.find((p) => p.id === plan.change.personId);
+  if (!owner) return plan;
+  const after = ctx.bookings.map((b) => (b.id === plan.change.bookingId ? { ...b, ...plan.change, id: b.id } : b));
+  const peak = Math.max(...weeksBetween(plan.change.startWeek, plan.change.endWeek).map((w) => weekLoad(owner, after, w, ctx.capacityOf ?? flatCapacity).percent));
+  return peak > 100 ? { ok: false, code: "still_conflicted", peakPercent: peak } : plan;
 }

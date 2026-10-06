@@ -1,4 +1,4 @@
-import { findConflicts, fitShift, recommendResolution, reducedHours, suggestSubstitute } from "@/modules/conflict";
+import { findConflicts, fitShift, planDecision, recommendResolution, reducedHours, suggestSubstitute } from "@/modules/conflict";
 import { can, formatWeekRange, weekLabel, weeksFrom } from "@/modules/people";
 import { and, eq, isNull } from "drizzle-orm";
 import { loadSnapshot, recentDecisions } from "@/server/data";
@@ -21,6 +21,8 @@ export default async function ConflictsPage() {
         .map((b) => {
           const project = s.projects.find((p) => p.id === b.projectId)!;
           const sub = suggestSubstitute(b, person.id, s.people, s.bookings, s.capacityOf);
+          // Preview each option with the same rules the server applies, so the screen never offers a fix that will be refused.
+          const works = (kind: "shift" | "reduce") => planDecision(c, { bookingId: b.id, kind, reason: "preview" }, { ...s, capacityOf: s.capacityOf }).ok;
           return {
             id: b.id,
             projectName: project.name,
@@ -30,6 +32,8 @@ export default async function ConflictsPage() {
             period: formatWeekRange(b.startWeek, b.endWeek),
             shiftWeeks: fitShift(b, c, person, s.bookings, s.capacityOf),
             reducedHours: reducedHours(b.hoursPerWeek),
+            shiftOk: works("shift"),
+            reduceOk: works("reduce"),
             substitute: sub ? { personId: sub.person.id, name: sub.person.name, skillMatch: Math.round(sub.skillMatch * 100), peakAfter: sub.peakAfter } : null,
           };
         })
