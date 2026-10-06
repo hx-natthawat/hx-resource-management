@@ -119,7 +119,20 @@ export function planDecision(
   if (!plan.ok) return plan;
   const owner = ctx.people.find((p) => p.id === plan.change.personId);
   if (!owner) return plan;
-  const after = ctx.bookings.map((b) => (b.id === plan.change.bookingId ? { ...b, ...plan.change, id: b.id } : b));
-  const peak = Math.max(...weeksBetween(plan.change.startWeek, plan.change.endWeek).map((w) => weekLoad(owner, after, w, ctx.capacityOf ?? flatCapacity).percent));
-  return peak > 100 ? { ok: false, code: "still_conflicted", peakPercent: peak } : plan;
+  const capacityOf = ctx.capacityOf ?? flatCapacity;
+  const target = ctx.bookings.find((b) => b.id === plan.change.bookingId)!;
+  const others = ctx.bookings.filter((b) => b.id !== target.id);
+  const after = [...others, { ...target, ...plan.change, id: target.id }];
+  // Weeks the change can fix must end within capacity. Weeks already over without this
+  // booking (say, a holiday under another project's hours) cannot be fixed through it,
+  // so there it only has to carry no more hours than before.
+  const hoursBefore = (w: number) => (target.personId === owner.id && w >= target.startWeek && w <= target.endWeek ? target.hoursPerWeek : 0);
+  let peak = 0;
+  for (const w of weeksBetween(plan.change.startWeek, plan.change.endWeek)) {
+    const without = weekLoad(owner, others, w, capacityOf).percent;
+    const pct = weekLoad(owner, after, w, capacityOf).percent;
+    const bad = without <= 100 ? pct > 100 : plan.change.hoursPerWeek > hoursBefore(w);
+    if (bad) peak = Math.max(peak, pct);
+  }
+  return peak > 0 ? { ok: false, code: "still_conflicted", peakPercent: peak } : plan;
 }
