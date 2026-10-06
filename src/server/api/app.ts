@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
-import { can, type Action } from "@/modules/people";
+import { can, LEVELS, ROLES, weekOfDate, type Action } from "@/modules/people";
 import { DEV_COOKIE, type SessionUser } from "../auth/session";
+import { createDemand, proposeBooking, rejectBooking, type CommandResult } from "../booking/commands";
 import { confirmBooking } from "../booking/confirm";
 import { saveRank } from "../portfolio/rank";
 import { withDb, type Db } from "../db/client";
@@ -19,6 +20,26 @@ type Env = { Variables: { db: Db; user: SessionUser | null } };
 export type ApiContext = Context<Env>;
 
 const uuid = z.string().uuid();
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+const demandBody = z
+  .object({
+    projectId: uuid,
+    role: z.enum(ROLES),
+    level: z.enum(LEVELS),
+    skills: z.array(z.string().trim().min(1).max(40)).max(10).default([]),
+    hoursPerWeek: z.number().int().min(1).max(40),
+    startDate: isoDate,
+    endDate: isoDate,
+    note: z.string().max(1000).optional(),
+  })
+  .strict();
+
+function commandResponse<T>(c: ApiContext, r: CommandResult<T>, ok: (v: T) => object) {
+  if (r.ok) return c.json(ok(r.value));
+  const status = r.code === "not_found" ? 404 : r.code === "invalid_request" ? 400 : 409;
+  return c.json({ error: r.code, message: r.message }, status);
+}
 
 /** 401 without a session, 403 when the role may not perform the action (ADR-005 RBAC). */
 export function guard(c: ApiContext, action?: Action): SessionUser | Response {
@@ -80,6 +101,49 @@ export function createApp(deps: AppDeps) {
     if (result.ok) return c.json({ booking: result.booking, alreadyConfirmed: result.alreadyConfirmed });
     const status = result.code === "not_found" ? 404 : 409;
     return c.json({ error: result.code, message: result.message, peakPercent: result.peakPercent }, status);
+  });
+
+  app.post("/demands", async (c) => {
+    const user = guard(c, "demand.create");
+    if (user instanceof Response) return user;
+    const raw = await c.req.json().catch(() => null);
+    if (raw && typeof raw === "object" && "personId" in raw) {
+      return c.json({ error: "named_person_not_allowed", message: "ขอคนตาม role และ skill แล้ว RM จะเสนอชื่อให้ (ADR-002)" }, 400);
+    }
+    const body = demandBody.safeParse(raw);
+    if (!body.success) return c.json({ error: "invalid_request", issues: body.error.issues.map((i) => i.path.join(".")) }, 400);
+    const d = body.data;
+    const r = await createDemand(c.get("db"), {
+      tenantId: user.tenantId,
+      actor: user.name,
+      projectId: d.projectId,
+      role: d.role,
+      level: d.level,
+      skills: d.skills,
+      hoursPerWeek: d.hoursPerWeek,
+      startWeek: weekOfDate(new Date(`${d.startDate}T00:00:00Z`)),
+      endWeek: weekOfDate(new Date(`${d.endDate}T00:00:00Z`)),
+      note: d.note,
+      source: "form",
+    });
+    return commandResponse(c, r, (booking) => ({ booking }));
+  });
+
+  app.post("/bookings/:id/propose", async (c) => {
+    const user = guard(c, "booking.confirm");
+    if (user instanceof Response) return user;
+    const id = uuid.safeParse(c.req.param("id"));
+    const body = await readJson(c, z.object({ personId: uuid }));
+    if (!id.success || !body) return c.json({ error: "invalid_request" }, 400);
+    return commandResponse(c, await proposeBooking(c.get("db"), user.tenantId, id.data, body.personId, user.name), (booking) => ({ booking }));
+  });
+
+  app.post("/bookings/:id/reject", async (c) => {
+    const user = guard(c, "booking.reject");
+    if (user instanceof Response) return user;
+    const id = uuid.safeParse(c.req.param("id"));
+    if (!id.success) return c.json({ error: "invalid_request" }, 400);
+    return commandResponse(c, await rejectBooking(c.get("db"), user.tenantId, id.data, user.name), (booking) => ({ booking }));
   });
 
   app.post("/portfolio/rank", async (c) => {

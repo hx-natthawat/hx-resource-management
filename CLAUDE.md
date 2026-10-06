@@ -19,6 +19,7 @@ Research, Analysis, Design and Plan, UX/UI confirmed by Fero, ADR, Develop, Veri
 ```bash
 pnpm install
 pnpm dev:db         # start or reuse PostgreSQL, migrate, seed demo data, write .env.local (keep it running; rerun after pulling new migrations)
+pnpm dev:db --reset # wipe a local database and reseed the demo
 pnpm dev            # http://localhost:3000
 pnpm lint           # includes the module boundary rule
 pnpm typecheck
@@ -42,13 +43,14 @@ pnpm db:generate    # new migration after a schema change
 | `src/server/api/app.ts` | Hono app under `/api`. Zod validation at the edge. | 005 |
 | `drizzle/` | Migrations. `0001` makes `audit_events` append-only. | 006 |
 | `src/server/seed/demo.ts` | Fictional demo tenant matching the prototype. Idempotent. Never run against production. | 005 |
+| `src/server/booking/commands.ts` | Demand (Requested, no person), propose (Soft), reject. Each writes an audit event; repeats converge. | 002, 006 |
 | `src/server/portfolio/rank.ts` | Save the Portfolio Rank as one ordered list: no ties, reason required when it differs from WSJF, one Decision log entry. | 003 |
 | `src/modules/people/week.ts`, `calendar.ts` | Week arithmetic across ISO years; holidays lower weekly capacity by a fifth per weekday. | 004 |
 | `tests/modules`, `tests/integration` | Domain tests and real-PostgreSQL tests, including the two-confirmations race. | 006 |
 
 ## Not built yet (each is a Feature issue)
 
-- Authentication. `src/app/api/[[...route]]/route.ts` accepts a dev tenant header outside production and returns 401 in production. The SSO feature replaces it with better-auth and Google Workspace, checking the `hd` claim server-side.
+- Authentication. Outside production a demo user is picked on /sign-in (cookie `hx_dev_user`); production returns 401 until Google sign-in lands. The SSO feature replaces it with better-auth and Google Workspace, checking the `hd` claim server-side.
 - Screens. Port each one from `prototypes/ui-mobile-first` when its feature issue starts, wired to the API instead of the in-memory store.
 - Heatmap materialized view, Cron refresh, voice engine, audio retention job.
 - Cloudflare: replace `REPLACE_WITH_HYPERDRIVE_ID` in `wrangler.jsonc` and read the Hyperdrive connection string as `DATABASE_URL`.

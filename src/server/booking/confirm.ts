@@ -1,9 +1,10 @@
 import { and, eq, ne } from "drizzle-orm";
 import { transition } from "@/modules/booking";
 import { loadAfter } from "@/modules/conflict";
+import { capacityWithHolidays } from "@/modules/people";
 import type { Db } from "../db/client";
-import { toBooking, toPerson } from "../db/mappers";
-import { auditEvents, bookings, people } from "../db/schema";
+import { toBooking, toHoliday, toPerson } from "../db/mappers";
+import { auditEvents, bookings, holidays, people } from "../db/schema";
 
 export type ConfirmResult =
   | { ok: true; booking: typeof bookings.$inferSelect; alreadyConfirmed: boolean }
@@ -55,7 +56,9 @@ export async function confirmBooking(db: Db, input: ConfirmInput): Promise<Confi
       );
 
     const domainPerson = toPerson(person);
-    const peak = loadAfter(domainPerson, others.map(toBooking), row, { count: "hard" });
+    const hols = await tx.select().from(holidays).where(eq(holidays.tenantId, input.tenantId));
+    const capacityOf = capacityWithHolidays(hols.map(toHoliday));
+    const peak = loadAfter(domainPerson, others.map(toBooking), row, { count: "hard", capacityOf });
     if (peak > 100) {
       return { ok: false, code: "over_capacity", message: `${person.name} would reach ${peak}%`, peakPercent: peak };
     }

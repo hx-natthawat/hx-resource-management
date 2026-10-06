@@ -2,6 +2,7 @@
  * Local database for development (ADR-005 data layer).
  *
  *   pnpm dev:db          start PostgreSQL if needed, migrate, seed demo data, keep running
+ *   pnpm dev:db --reset  same, after wiping a local database back to empty (localhost only)
  *
  * With DATABASE_URL set (in the shell or .env.local) it uses that server and exits after seeding.
  * Without it, it starts an embedded PostgreSQL in .data/pg (macOS and most Linux) and stays up
@@ -9,6 +10,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { sql } from "drizzle-orm";
 import { withDb } from "@/server/db/client";
 import { runMigrations } from "@/server/db/migrate";
 import { seedDemo } from "@/server/seed/demo";
@@ -49,9 +51,20 @@ async function main() {
     stop = () => pg.stop();
   }
 
+  if (process.argv.includes("--reset")) {
+    const host = new URL(url).hostname;
+    if (host !== "localhost" && host !== "127.0.0.1") throw new Error(`Refusing to reset a non-local database (${host})`);
+    await withDb(url, async (db) => {
+      await db.execute(sql`DROP SCHEMA IF EXISTS drizzle CASCADE`);
+      await db.execute(sql`DROP SCHEMA public CASCADE`);
+      await db.execute(sql`CREATE SCHEMA public`);
+    });
+    console.log("Local database wiped.");
+  }
+
   await runMigrations(url);
   const tenantId = await withDb(url, (db) => seedDemo(db));
-  writeEnvFile({ DATABASE_URL: url, DEV_TENANT_ID: tenantId });
+  writeEnvFile({ DATABASE_URL: url });
   console.log(`Database ready. Demo tenant ${tenantId}. Wrote .env.local.`);
 
   if (!stop) return;
