@@ -4,6 +4,7 @@ import { z } from "zod";
 import { can, type Action } from "@/modules/people";
 import { DEV_COOKIE, type SessionUser } from "../auth/session";
 import { confirmBooking } from "../booking/confirm";
+import { saveRank } from "../portfolio/rank";
 import { withDb, type Db } from "../db/client";
 import { users } from "../db/schema";
 
@@ -79,6 +80,15 @@ export function createApp(deps: AppDeps) {
     if (result.ok) return c.json({ booking: result.booking, alreadyConfirmed: result.alreadyConfirmed });
     const status = result.code === "not_found" ? 404 : 409;
     return c.json({ error: result.code, message: result.message, peakPercent: result.peakPercent }, status);
+  });
+
+  app.post("/portfolio/rank", async (c) => {
+    const user = guard(c, "rank.edit");
+    if (user instanceof Response) return user;
+    const body = await readJson(c, z.object({ order: z.array(uuid).min(1), reason: z.string().max(500).optional() }));
+    if (!body) return c.json({ error: "invalid_request" }, 400);
+    const result = await saveRank(c.get("db"), { tenantId: user.tenantId, actor: user.name, order: body.order, reason: body.reason });
+    return result.ok ? c.json(result) : c.json({ error: result.code, message: result.message, deviations: result.deviations }, 422);
   });
 
   return app;

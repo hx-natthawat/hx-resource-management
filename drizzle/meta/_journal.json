@@ -22,6 +22,20 @@
       "when": 1791281237890,
       "tag": "0002_users_holidays",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791281783582,
+      "tag": "0003_decision_log_rank",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791281785111,
+      "tag": "0004_rank_unique_deferrable",
+      "breakpoints": true
     }
   ]
 }

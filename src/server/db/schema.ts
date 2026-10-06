@@ -3,7 +3,7 @@ import { bigserial, boolean, date, index, integer, jsonb, numeric, pgEnum, pgTab
 
 export const bookingStatus = pgEnum("booking_status", ["Draft", "Requested", "Proposed", "Confirmed", "Released", "Rejected"]);
 export const bookingSource = pgEnum("booking_source", ["voice", "form", "seed"]);
-export const decisionKind = pgEnum("decision_kind", ["shift", "substitute", "reduce"]);
+export const decisionKind = pgEnum("decision_kind", ["shift", "substitute", "reduce", "rank"]);
 export const appRole = pgEnum("app_role", ["PM", "RM", "Council", "Executive", "Admin"]);
 
 const tenantId = () => uuid("tenant_id").notNull().references(() => tenants.id);
@@ -72,7 +72,9 @@ export const projects = pgTable(
     rankNote: text("rank_note"),
     ownerUserId: uuid("owner_user_id").references(() => users.id),
   },
-  (t) => [uniqueIndex("projects_tenant_rank_uq").on(t.tenantId, t.rank)],
+  // Rank is unique per tenant through a DEFERRABLE constraint added in migration 0004,
+  // so a whole reorder can run in one transaction (ADR-003: no ties).
+  (t) => [index("projects_tenant_rank_idx").on(t.tenantId, t.rank)],
 );
 
 /** Weeks are ISO year * 100 + ISO week (2026-W43 is 202643), so ranges compare across years. */
@@ -99,11 +101,12 @@ export const bookings = pgTable(
   (t) => [index("bookings_person_weeks_idx").on(t.tenantId, t.personId, t.startWeek, t.endWeek)],
 );
 
+/** The Decision log: conflict rulings and Portfolio Rank changes, with who decided and why. */
 export const decisions = pgTable("decisions", {
   id: id(),
   tenantId: tenantId(),
-  personId: uuid("person_id").notNull().references(() => people.id),
-  weeks: integer("weeks").array().notNull(),
+  personId: uuid("person_id").references(() => people.id),
+  weeks: integer("weeks").array().notNull().default(sql`'{}'`),
   kind: decisionKind("kind").notNull(),
   summary: text("summary").notNull(),
   followedRecommendation: boolean("followed_recommendation").notNull(),
