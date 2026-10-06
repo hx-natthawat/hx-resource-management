@@ -3,7 +3,7 @@
 ## Status
 
 Accepted. Fero accepted in chat on 2026-10-06 ("Approve all ADR"). Issue: not yet created.
-Open item: audio retention period, to be set by HarmonyX's DPO before voice input goes live.
+Audio retention: 90 days, set by Fero on 2026-10-06.
 
 ## Context
 
@@ -21,7 +21,7 @@ Option 2 for Release 2, behind two interfaces, `SpeechEngine` and `Extractor`, s
 
 - Output keeps the `DemandDraft` shape. Every field carries its source: heard, inferred, account, or edited.
 - Nothing is saved until a human approves on the review screen.
-- Audio is stored encrypted, the user is told before recording, and audio is deleted after the period the DPO sets.
+- Audio is stored encrypted, the user is told before recording, and audio is deleted automatically after 90 days.
 
 ## Consequences
 
