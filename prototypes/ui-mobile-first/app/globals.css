@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+@theme {
+  --color-hx-blue: #345589;
+  --color-hx-blue-deep: #24406b;
+  --color-hx-gold: #ba9645;
+  --color-hx-gold-text: #8a6f2f;
+  --color-hx-ink: #333333;
+  --color-hx-muted: #5a6478;
+  --color-hx-tint: #fafbff;
+  --color-hx-tint-2: #f0f4ff;
+  --color-hx-sky: #c9dcf5;
+  --color-hx-line: #e9edf5;
+  --color-hx-over: #b42323;
+  --color-hx-over-bg: #fbe7e7;
+  --color-hx-ok: #1f6b45;
+  --color-hx-ok-bg: #e3f2ea;
+  --color-hx-warn-bg: #fbf3e0;
+  --color-hx-warn-row: #fffaf0;
+  --font-sans: "Inter", "Noto Sans Thai", system-ui, sans-serif;
+  --shadow-card: 0 4px 24px rgba(180, 210, 255, 0.45);
+}
+
+@layer base {
+  body {
+    @apply bg-hx-tint text-hx-ink antialiased;
+    letter-spacing: -0.01em;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-hx-blue);
+    box-shadow: 0 0 0 4px rgba(186, 150, 69, 0.5);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-[rgba(52,85,137,0.08)] bg-white shadow-card;
+  }
+  .btn {
+    @apply inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-hx-blue px-5 text-[15px] font-semibold text-white transition-colors hover:bg-hx-gold-text disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-ghost {
+    @apply inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border-[1.5px] border-hx-blue bg-white px-5 text-[15px] font-semibold text-hx-blue transition-colors hover:bg-hx-tint-2;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+  .eyebrow {
+    @apply text-xs font-bold uppercase tracking-[0.08em] text-hx-gold-text;
+  }
+  .h1 {
+    @apply text-[22px] font-extrabold tracking-[-0.02em] text-hx-blue lg:text-[28px];
+  }
+  .input {
+    @apply min-h-[48px] w-full rounded-[10px] border border-[rgba(52,85,137,0.2)] bg-white px-3.5 text-[15px] text-hx-ink;
+  }
+}
