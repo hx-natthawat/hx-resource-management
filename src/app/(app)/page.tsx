@@ -1,10 +1,10 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { IconAlert, IconChevron, IconMic } from "@/components/icons";
 import { findConflicts } from "@/modules/conflict";
 import { ROLE_LABEL, weekLabel, weeksFrom } from "@/modules/people";
 import { loadSnapshot } from "@/server/data";
-import { projects as projectsTable } from "@/server/db/schema";
+import { notifications, projects as projectsTable } from "@/server/db/schema";
 import { currentWeek, withPage } from "@/server/page";
 
 export const dynamic = "force-dynamic";
@@ -16,9 +16,15 @@ export default async function Home() {
       .select({ id: projectsTable.id })
       .from(projectsTable)
       .where(and(eq(projectsTable.tenantId, user.tenantId), eq(projectsTable.ownerUserId, user.userId)));
-    return { user, s, ownedIds: new Set(owned.map((o) => o.id)) };
+    const notices = await db
+      .select()
+      .from(notifications)
+      .where(and(eq(notifications.tenantId, user.tenantId), eq(notifications.userId, user.userId), isNull(notifications.readAt)))
+      .orderBy(desc(notifications.createdAt))
+      .limit(5);
+    return { user, s, ownedIds: new Set(owned.map((o) => o.id)), notices };
   });
-  const { user, s, ownedIds } = data;
+  const { user, s, ownedIds, notices } = data;
   const name = (id: string) => s.people.find((p) => p.id === id)?.name ?? "";
   const projectName = (id: string) => s.projects.find((p) => p.id === id)?.name ?? "";
   const conflicts = findConflicts(s.people, s.bookings, weeksFrom(currentWeek(), 8), s.capacityOf);
@@ -64,6 +70,21 @@ export default async function Home() {
             </span>
             <IconChevron className="text-hx-muted" size={18} />
           </Link>
+        )}
+
+        {notices.length > 0 && (
+          <section className="flex flex-col gap-2" aria-label="อัปเดตถึงคุณ">
+            <h2 className="text-[13px] font-bold text-hx-blue">อัปเดตถึงคุณ</h2>
+            {notices.map((n) => (
+              <Link key={n.id} href={n.href} className="flex min-h-[64px] items-start gap-3 rounded-[14px] border-[1.5px] border-hx-gold bg-white px-3.5 py-3 text-hx-ink no-underline">
+                <IconAlert className="mt-0.5 shrink-0 text-hx-gold-text" size={18} />
+                <span className="flex-1">
+                  <span className="block font-semibold">{n.title}</span>
+                  <span className="text-xs text-hx-muted">{n.body}</span>
+                </span>
+              </Link>
+            ))}
+          </section>
         )}
 
         <section className="flex flex-col gap-2">

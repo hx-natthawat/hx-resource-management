@@ -5,6 +5,7 @@ import { can, LEVELS, ROLES, weekOfDate, type Action } from "@/modules/people";
 import { DEV_COOKIE, type SessionUser } from "../auth/session";
 import { createDemand, proposeBooking, rejectBooking, type CommandResult } from "../booking/commands";
 import { confirmBooking } from "../booking/confirm";
+import { decideConflict } from "../conflict/decide";
 import { saveRank } from "../portfolio/rank";
 import { withDb, type Db } from "../db/client";
 import { users } from "../db/schema";
@@ -153,6 +154,30 @@ export function createApp(deps: AppDeps) {
     if (!body) return c.json({ error: "invalid_request" }, 400);
     const result = await saveRank(c.get("db"), { tenantId: user.tenantId, actor: user.name, order: body.order, reason: body.reason });
     return result.ok ? c.json(result) : c.json({ error: result.code, message: result.message, deviations: result.deviations }, 422);
+  });
+
+  app.post("/conflicts/decide", async (c) => {
+    const user = guard(c, "conflict.decide");
+    if (user instanceof Response) return user;
+    const body = await readJson(
+      c,
+      z
+        .object({
+          requestId: uuid,
+          personId: uuid,
+          bookingId: uuid,
+          kind: z.enum(["shift", "substitute", "reduce"]),
+          substituteId: uuid.optional(),
+          hoursPerWeek: z.number().int().min(1).max(40).optional(),
+          reason: z.string().max(500).optional(),
+        })
+        .strict(),
+    );
+    if (!body) return c.json({ error: "invalid_request" }, 400);
+    const result = await decideConflict(c.get("db"), { ...body, tenantId: user.tenantId, actor: user.name, actorUserId: user.userId });
+    if (result.ok) return c.json({ decision: result.decision, replayed: result.replayed });
+    const status = result.code === "not_found" ? 404 : result.code === "no_conflict" ? 409 : 422;
+    return c.json({ error: result.code, message: result.message, peakPercent: result.peakPercent }, status);
   });
 
   return app;

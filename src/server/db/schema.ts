@@ -113,7 +113,26 @@ export const decisions = pgTable("decisions", {
   reason: text("reason").notNull(),
   decidedBy: text("decided_by").notNull(),
   decidedAt: timestamp("decided_at", { withTimezone: true }).notNull().defaultNow(),
+  bookingId: uuid("booking_id").references(() => bookings.id),
+  /** Client-generated key so a retried decision is applied once. */
+  requestId: uuid("request_id").unique(),
 });
+
+/** In-app notices, such as telling a PM that a higher-ranked project took their person (ADR-003). */
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    href: text("href").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+  },
+  (t) => [index("notifications_user_idx").on(t.tenantId, t.userId, t.createdAt)],
+);
 
 /** Append-only. A trigger in the migrations rejects UPDATE and DELETE (ADR-006). */
 export const auditEvents = pgTable(

@@ -45,6 +45,7 @@ pnpm db:generate    # new migration after a schema change
 | `src/server/seed/demo.ts` | Fictional demo tenant matching the prototype. Idempotent. Never run against production. | 005 |
 | `src/server/booking/commands.ts` | Demand (Requested, no person), propose (Soft), reject. Each writes an audit event; repeats converge. | 002, 006 |
 | `src/server/portfolio/rank.ts` | Save the Portfolio Rank as one ordered list: no ties, reason required when it differs from WSJF, one Decision log entry. | 003 |
+| `src/modules/conflict/decide.ts`, `src/server/conflict/decide.ts` | Council decision: shift to the first weeks that fit, substitute only someone with room, reduce hours. Override needs a reason. Recomputes the conflict under row locks; `requestId` makes retries apply once; notifies the losing project's PM. | 003, 006 |
 | `src/modules/people/week.ts`, `calendar.ts` | Week arithmetic across ISO years; holidays lower weekly capacity by a fifth per weekday. | 004 |
 | `tests/modules`, `tests/integration` | Domain tests and real-PostgreSQL tests, including the two-confirmations race. | 006 |
 
