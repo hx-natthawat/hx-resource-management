@@ -21,7 +21,7 @@ pnpm install
 pnpm dev            # http://localhost:3000
 pnpm lint           # includes the module boundary rule
 pnpm typecheck
-pnpm test           # unit + PostgreSQL integration (embedded Postgres if TEST_DATABASE_URL is unset)
+pnpm test           # unit + PostgreSQL integration (embedded Postgres on macOS if TEST_DATABASE_URL is unset; CI and Linux set TEST_DATABASE_URL)
 pnpm build          # Node standalone, used for on-premise Docker
 pnpm cf:build       # Cloudflare Workers via OpenNext
 pnpm db:generate    # new migration after a schema change
@@ -50,6 +50,8 @@ pnpm db:generate    # new migration after a schema change
 - Cloudflare: replace `REPLACE_WITH_HYPERDRIVE_ID` in `wrangler.jsonc` and read the Hyperdrive connection string as `DATABASE_URL`.
 
 ## Gotchas
+
+- The embedded-postgres Linux binary needs ICU 60, which Ubuntu 24.04 lacks. CI uses a `postgres:16` service; on Linux point `TEST_DATABASE_URL` at a real PostgreSQL.
 
 - pnpm uses `node-linker=hoisted` (`.npmrc`). OpenNext cannot trace `pg-cloudflare` through pnpm's isolated layout.
 - `pg` and `pg-cloudflare` are in `serverExternalPackages` so the Workers bundle resolves the Cloudflare socket.
