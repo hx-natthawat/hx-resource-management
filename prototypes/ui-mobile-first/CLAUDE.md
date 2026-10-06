@@ -5,7 +5,7 @@ This is the approved UX/UI turned into running code. It is the starting point fo
 ## Rules for every change
 
 - Follow the `/hx-po` lifecycle: Research, Analysis, Design (UX/UI first, confirmed by Fero), ADR, Develop, Verify, Deliver.
-- No production code before the governing ADR is Accepted. ADRs live in `docs/adr/`. All seven are still **Proposed**.
+- No production code before the governing ADR is Accepted. ADRs live in `docs/adr/` at the repo root (branch `adr/0001-0007-import` until merged). All seven are still **Proposed**.
 - Mobile first. Design and test at 390 px wide first, then `lg` (1024 px) for the desktop layout. Touch targets at least 44 px, primary actions at least 48 px, pinned above the bottom nav.
 - Voice is the primary input. Forms are the fallback. Nothing is saved until a human approves on a review screen.
 - UI copy is Thai (professional register). Code, identifiers, commits, branches and issue titles are English.
