@@ -13,3 +13,13 @@ and a single Portfolio Rank settles conflicts before they reach the CEO.
 Research → Analysis → Design and Plan → ADR → Develop → Verify → Deliver.
 No production code merges before its governing ADR is Accepted.
 Nothing ships before Verify passes against the running feature with evidence on the issue.
+
+## Run locally
+
+```bash
+pnpm install
+pnpm dev     # http://localhost:3000
+pnpm test    # unit tests and PostgreSQL integration tests
+```
+
+Stack and module layout follow ADR-005. Read `CLAUDE.md` before changing code.

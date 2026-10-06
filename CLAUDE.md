@@ -1,0 +1,56 @@
+# HX Resource Management
+
+Production codebase. Every rule below comes from an Accepted ADR in `docs/adr/`.
+
+## How work moves
+
+Research, Analysis, Design and Plan, UX/UI confirmed by Fero, ADR, Develop, Verify, Deliver. A change that contradicts an Accepted ADR needs a new ADR that supersedes it. Never merge to `main` without Fero's approval.
+
+## Product rules
+
+- Mobile first. Build and check every screen at 390 px, then at 1024 px and up. Touch targets at least 44 px, primary actions at least 48 px and pinned above the bottom nav.
+- Voice first, human approves (ADR-008). Nothing is saved from voice until a human approves on a review screen. Every extracted field carries its source. Audio is encrypted and deleted after 90 days.
+- UI copy is Thai, professional register. Code, identifiers, commits and branches are English.
+- Brand tokens are the `hx-*` values in `src/app/globals.css` (HarmonyX Design System). No raw hex in components.
+- Approved screens: `prototypes/ui-mobile-first` on branch `prototype/r1-booking-logic`, and the Design canvas https://claude.ai/artifact/397GF7hyiKhAUV6e853b32.
+
+## Commands
+
+```bash
+pnpm install
+pnpm dev            # http://localhost:3000
+pnpm lint           # includes the module boundary rule
+pnpm typecheck
+pnpm test           # unit + PostgreSQL integration (embedded Postgres if TEST_DATABASE_URL is unset)
+pnpm build          # Node standalone, used for on-premise Docker
+pnpm cf:build       # Cloudflare Workers via OpenNext
+pnpm db:generate    # new migration after a schema change
+```
+
+## Map
+
+| Path | Owns | ADR |
+| --- | --- | --- |
+| `src/modules/people`, `portfolio`, `booking`, `conflict`, `integration` | Pure domain logic and types. No framework imports; ESLint enforces it. | 005 |
+| `src/modules/booking/state.ts` | Booking state machine. Every status change goes through `transition()`. | 002 |
+| `src/modules/conflict/capacity.ts` | Week load (hard and soft), conflicts, candidate ranking, recommended resolution. | 003, 004 |
+| `src/modules/integration/voice/extract.ts` | Rule-based Thai extractor. Replace behind `SpeechEngine` and `Extractor`. | 008 |
+| `src/server/db/schema.ts` | Drizzle schema. `tenant_id` on every table. Weeks are ISO year × 100 + week (202643). | 004, 005 |
+| `src/server/db/client.ts` | One PostgreSQL client per request, never global. | 005 |
+| `src/server/booking/confirm.ts` | Confirm a booking inside one transaction with the person's row locked. Idempotent. Writes an audit event. | 006 |
+| `src/server/api/app.ts` | Hono app under `/api`. Zod validation at the edge. | 005 |
+| `drizzle/` | Migrations. `0001` makes `audit_events` append-only. | 006 |
+| `tests/modules`, `tests/integration` | Domain tests and real-PostgreSQL tests, including the two-confirmations race. | 006 |
+
+## Not built yet (each is a Feature issue)
+
+- Authentication. `src/app/api/[[...route]]/route.ts` accepts a dev tenant header outside production and returns 401 in production. The SSO feature replaces it with better-auth and Google Workspace, checking the `hd` claim server-side.
+- Screens. Port each one from `prototypes/ui-mobile-first` when its feature issue starts, wired to the API instead of the in-memory store.
+- Heatmap materialized view, Cron refresh, voice engine, audio retention job.
+- Cloudflare: replace `REPLACE_WITH_HYPERDRIVE_ID` in `wrangler.jsonc` and read the Hyperdrive connection string as `DATABASE_URL`.
+
+## Gotchas
+
+- pnpm uses `node-linker=hoisted` (`.npmrc`). OpenNext cannot trace `pg-cloudflare` through pnpm's isolated layout.
+- `pg` and `pg-cloudflare` are in `serverExternalPackages` so the Workers bundle resolves the Cloudflare socket.
+- Hyperdrive has no advisory locks or `LISTEN/NOTIFY`. Use row locks only.
