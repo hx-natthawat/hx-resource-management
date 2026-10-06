@@ -1,0 +1,9 @@
+{
+  "name": "hx-resource-management",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "prototype:booking": "node prototypes/r1-booking-logic/tui.ts"
+  }
+}
